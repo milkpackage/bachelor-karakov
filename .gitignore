@@ -1,0 +1,6 @@
+**/.env**/__pycache__**/node_modules
+**/.next
+**/next-env 
+/RestApi/.env
+/FrontEnd/public/
+RestApi/data/roberta_plutchik.pt
