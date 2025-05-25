@@ -14,19 +14,17 @@ import { getSupabaseBrowserClient } from "@/lib/supabase"
 // Define the emotions in the Plutchik Wheel with point values
 const emotions = [
   // Calculate positions evenly around the circle
-  { id: 1, name: "Joy", actualValue: "joy", color: "bg-yellow-400", angle: 0, value: 10 },
-  { id: 2, name: "Trust", actualValue: "trust", color: "bg-green-400", angle: 45, value: 9 },
-  { id: 3, name: "Fear", actualValue: "fear", color: "bg-green-600", angle: 90, value: 4 },
-  { id: 4, name: "Surprise", actualValue: "surprise", color: "bg-blue-400", angle: 135, value: 6 },
-  { id: 5, name: "Sadness", actualValue: "sadness", color: "bg-blue-600", angle: 180, value: 3 },
-  { id: 6, name: "Disgust", actualValue: "disgust", color: "bg-purple-400", angle: 225, value: 1 },
-  { id: 7, name: "Anger", actualValue: "anger", color: "bg-red-500", angle: 270, value: 2 },
-  { id: 8, name: "Anticipation", actualValue: "anticipation", color: "bg-orange-400", angle: 315, value: 7 },
-  // Neutral in the center
+  { id: 1, name: "joy", color: "bg-yellow-400", angle: 0, value: 10 },
+  { id: 2, name: "trust", color: "bg-green-400", angle: 45, value: 9 },
+  { id: 3, name: "fear", color: "bg-green-600", angle: 90, value: 4 },
+  { id: 4, name: "surprise", color: "bg-blue-400", angle: 135, value: 6 },
+  { id: 5, name: "sadness", color: "bg-blue-600", angle: 180, value: 3 },
+  { id: 6, name: "disgust", color: "bg-purple-400", angle: 225, value: 1 },
+  { id: 7, name: "anger", color: "bg-red-500", angle: 270, value: 2 },
+  { id: 8, name: "anticipation", color: "bg-orange-400", angle: 315, value: 7 },
   {
     id: 9,
-    name: "Neutral",
-    actualValue: "neutral",
+    name: "neutral",
     color: "bg-gray-400",
     position: "top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2",
     value: 0,
@@ -34,15 +32,15 @@ const emotions = [
 ]
 
 const emotionColors = {
-  Joy: "bg-yellow-400 text-white",
-  Trust: "bg-green-400 text-white",
-  Fear: "bg-green-600 text-white",
-  Surprise: "bg-blue-400 text-white",
-  Sadness: "bg-blue-600 text-white",
-  Disgust: "bg-purple-400 text-white",
-  Anger: "bg-red-500 text-white",
-  Anticipation: "bg-orange-400 text-white",
-  Neutral: "bg-gray-400 text-white",
+  joy: "bg-yellow-400 text-white",
+  trust: "bg-green-400 text-white",
+  fear: "bg-green-600 text-white",
+  surprise: "bg-blue-400 text-white",
+  sadness: "bg-blue-600 text-white",
+  disgust: "bg-purple-400 text-white",
+  anger: "bg-red-500 text-white",
+  anticipation: "bg-orange-400 text-white",
+  neutral: "bg-gray-400 text-white",
 }
 
 export default function EmotionTracker() {
@@ -87,25 +85,28 @@ export default function EmotionTracker() {
       if (!accessToken) {
         throw new Error("Authentication token not available")
       }
-      
-      const queryParams = new URLSearchParams({
-        message: notes.trim(),
-        emotion: selectedEmotion.actualValue
-      });
 
-      // Send request to AI evaluation endpoint
-      // "http://64.176.67.55:8000/rescore"
-      
-      const baseUrl = "http://127.0.0.1:8000/rescore"
-      const urlWithParams = `${baseUrl}?${queryParams.toString()}`
-      const aiResponse = await fetch(urlWithParams, {
+      console.log(
+        "JSON PAYLOADHHEM",
+        JSON.stringify({
+          message: notes.trim(),
+          emotion: selectedEmotion.name,
+        }),
+      )
+
+      console.log(111)
+      const url = new URL("http://127.0.0.1:8000/rescore")
+      url.searchParams.append("message", notes.trim())
+      url.searchParams.append("emotion", selectedEmotion.name)
+      const aiResponse = await fetch(url, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json", 
+          "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-      })
-      
+      }) 
+      console.log(222)
+
       if (!aiResponse.ok) {
         throw new Error(`AI evaluation failed: ${aiResponse.statusText}`)
       }
@@ -114,25 +115,25 @@ export default function EmotionTracker() {
       setAiEvaluation(aiResult)
       setIsEvaluating(false)
 
-      // // Save to Supabase using the moods table structure
-      // const selectedEmotionValue = selectedEmotion.value || 5 // Default to 5 if not found
+      // Save to Supabase using the moods table structure
+      const selectedEmotionValue = selectedEmotion.value || 5 // Default to 5 if not found
 
       if (error) throw error
 
       setSubmitted(true)
 
-      // // Reset form after 5 seconds (increased from 3 to give more time to see AI results)
-      // setTimeout(() => {
-      //   setSelectedEmotion(null)
-      //   setNotes("")
-      //   setSubmitted(false)
-      //   setAiEvaluation(null)
-      // }, 5000)
+      // Reset form after 5 seconds (increased from 3 to give more time to see AI results)
+      setTimeout(() => {
+        setSelectedEmotion(null)
+        setNotes("")
+        setSubmitted(false)
+        setAiEvaluation(null)
+      }, 5000)
     } catch (err) {
-      console.error("Error processing endpointo /rescore:", err)
-      console.error('Помилка:', err.name);
-      console.error('Повідомлення:', err.message);
-      console.error('Стек:', err.stack);
+      console.error("Error processing endpoin to /rescore:", err)
+      console.error("Error Name", err.name)
+      console.error("Message:", err.message)
+      console.error("Stack:", err.stack)
 
       setError("Failed to process your entry. Please try again.")
       setIsEvaluating(false)
@@ -161,9 +162,9 @@ export default function EmotionTracker() {
               {/* Segmented wheel chart */}
               <div className="absolute inset-0 rounded-full border-2 border-slate-200 dark:border-[#2a2a3c] overflow-hidden">
                 {emotions
-                  .filter((emotion) => emotion.name !== "Neutral")
+                  .filter((emotion) => emotion.name !== "neutral")
                   .map((emotion, index) => {
-                    const segmentAngle = 360 / 8 // 8 emotions excluding Neutral
+                    const segmentAngle = 360 / 8 
                     const startAngle = index * segmentAngle
                     const endAngle = (index + 1) * segmentAngle
 
@@ -188,14 +189,14 @@ export default function EmotionTracker() {
 
               {/* Center circle for neutral */}
               {(() => {
-                const neutralEmotion = emotions.find((e) => e.name === "Neutral")
+                const neutralEmotion = emotions.find((e) => e.name === "neutral")
                 return (
                   <button
                     onClick={() => handleEmotionClick(neutralEmotion)}
                     className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 
                       w-[30%] h-[30%] rounded-full ${neutralEmotion.color} flex items-center justify-center
                       ${selectedEmotion?.id === neutralEmotion.id ? "ring-2 ring-white dark:ring-[#2a2a3c] ring-offset-2 ring-offset-background" : "opacity-80 hover:opacity-100"}`}
-                    title="Neutral"
+                    title="neutral"
                   >
                     <span className="text-xs font-medium text-white">
                       {selectedEmotion?.id === neutralEmotion.id && <Check className="h-3 w-3" />}
@@ -206,7 +207,7 @@ export default function EmotionTracker() {
 
               {/* Labels for each segment */}
               {emotions
-                .filter((emotion) => emotion.name !== "Neutral")
+                .filter((emotion) => emotion.name !== "neutral")
                 .map((emotion, index) => {
                   const segmentAngle = 360 / 8 // 8 emotions excluding Neutral
                   const labelAngle = index * segmentAngle + segmentAngle / 2
@@ -261,23 +262,21 @@ export default function EmotionTracker() {
             <CardDescription>Add notes about what might be influencing your emotions today.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {
-            submitted ? (
+            {submitted ? (
               <Alert className="bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-700 dark:text-emerald-300">
                 <Check className="h-4 w-4" />
                 <AlertTitle>Success!</AlertTitle>
                 <AlertDescription>
                   <p>Your emotion entry has been recorded.</p>
-                  {
-                  aiEvaluation && (
+                  {aiEvaluation && (
                     <div className="mt-2 pt-2 border-t border-emerald-200 dark:border-emerald-800">
                       <p className="font-medium text-sm">AI Analysis:</p>
                       <p className="text-sm">
-                        Detected emotion: <span className="font-medium">{aiEvaluation.emotion_type}</span> with {Math.round(aiEvaluation.confidence * 100)}% confidence
+                        Detected emotion: <span className="font-medium">{aiEvaluation.emotion_type}</span> with{" "}
+                        {Math.round(aiEvaluation.confidence * 100)}% confidence
                       </p>
                     </div>
-                  )
-                  }
+                  )}
                 </AlertDescription>
               </Alert>
             ) : (
@@ -290,7 +289,7 @@ export default function EmotionTracker() {
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={6}
-                    className="dark:bg-[#0c0c14] dark:border-[#2a2a3c]"
+                    className="dark:bg-[#0c0c14] dark:border-[#2a2a3c] focus-visible:ring-ring"
                   />
                 </div>
 
@@ -314,17 +313,19 @@ export default function EmotionTracker() {
                     <h4 className="font-medium text-sm">AI Emotion Analysis</h4>
                     <div className="flex justify-between items-center">
                       <span className="text-sm">Detected Emotion:</span>
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        emotionColors[aiEvaluation.emotion_type] || "bg-gray-400 text-white"
-                      }`}>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs ${
+                          emotionColors[aiEvaluation.emotion_type] || "bg-gray-400 text-white"
+                        }`}
+                      >
                         {aiEvaluation.emotion_type}
                       </span>
                     </div>
                     <div>
                       <span className="text-sm">Confidence:</span>
                       <div className="mt-1 h-2 w-full bg-gray-200 dark:bg-[#1a1a24] rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-primary rounded-full" 
+                        <div
+                          className="h-full bg-primary rounded-full"
                           style={{ width: `${Math.round(aiEvaluation.confidence * 100)}%` }}
                         ></div>
                       </div>
@@ -336,7 +337,8 @@ export default function EmotionTracker() {
                     </div>
                     {aiEvaluation.emotion_type !== selectedEmotion.name && (
                       <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
-                        The AI detected a different emotion than what you selected. This might provide additional insight into your feelings.
+                        The AI detected a different emotion than what you selected. This might provide additional
+                        insight into your feelings.
                       </p>
                     )}
                   </div>

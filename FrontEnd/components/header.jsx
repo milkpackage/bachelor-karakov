@@ -36,16 +36,56 @@ export default function Header() {
         </div>
 
         <nav className="hidden md:flex items-center gap-6">
-          <Link href="/" className="text-sm font-medium transition-colors hover:text-primary">
+          <Link
+            href="/"
+            className="text-sm font-medium transition-colors hover:text-primary"
+            onClick={(e) => {
+              e.preventDefault()
+              const element = document.getElementById("dashboard")
+              if (element) {
+                element.scrollIntoView({ behavior: "smooth", block: "start" })
+              }
+            }}
+          >
             Dashboard
           </Link>
-          <Link href="#emotions" className="text-sm font-medium transition-colors hover:text-primary">
+          <Link
+            href="/"
+            className="text-sm font-medium transition-colors hover:text-primary"
+            onClick={(e) => {
+              e.preventDefault()
+              const element = document.getElementById("emotions")
+              if (element) {
+                element.scrollIntoView({ behavior: "smooth", block: "start" })
+              }
+            }}
+          >
             Emotions
           </Link>
-          <Link href="#tests" className="text-sm font-medium transition-colors hover:text-primary">
+          <Link
+            href="/"
+            className="text-sm font-medium transition-colors hover:text-primary"
+            onClick={(e) => {
+              e.preventDefault()
+              const element = document.getElementById("tests")
+              if (element) {
+                element.scrollIntoView({ behavior: "smooth", block: "start" })
+              }
+            }}
+          >
             Tests
           </Link>
-          <Link href="#chat" className="text-sm font-medium transition-colors hover:text-primary">
+          <Link
+            href="/"
+            className="text-sm font-medium transition-colors hover:text-primary"
+            onClick={(e) => {
+              e.preventDefault()
+              const element = document.getElementById("chat")
+              if (element) {
+                element.scrollIntoView({ behavior: "smooth", block: "start" })
+              }
+            }}
+          >
             Chat
           </Link>
         </nav>
@@ -104,28 +144,56 @@ export default function Header() {
             <Link
               href="/"
               className="text-sm font-medium transition-colors hover:text-primary"
-              onClick={() => setIsMenuOpen(false)}
+              onClick={(e) => {
+                e.preventDefault()
+                const element = document.getElementById("dashboard")
+                if (element) {
+                  element.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+                setIsMenuOpen(false)
+              }}
             >
               Dashboard
             </Link>
             <Link
-              href="#emotions"
+              href="/"
               className="text-sm font-medium transition-colors hover:text-primary"
-              onClick={() => setIsMenuOpen(false)}
+              onClick={(e) => {
+                e.preventDefault()
+                const element = document.getElementById("emotions")
+                if (element) {
+                  element.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+                setIsMenuOpen(false)
+              }}
             >
               Emotions
             </Link>
             <Link
-              href="#tests"
+              href="/"
               className="text-sm font-medium transition-colors hover:text-primary"
-              onClick={() => setIsMenuOpen(false)}
+              onClick={(e) => {
+                e.preventDefault()
+                const element = document.getElementById("tests")
+                if (element) {
+                  element.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+                setIsMenuOpen(false)
+              }}
             >
               Tests
             </Link>
             <Link
-              href="#chat"
+              href="/"
               className="text-sm font-medium transition-colors hover:text-primary"
-              onClick={() => setIsMenuOpen(false)}
+              onClick={(e) => {
+                e.preventDefault()
+                const element = document.getElementById("chat")
+                if (element) {
+                  element.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+                setIsMenuOpen(false)
+              }}
             >
               Chat
             </Link>

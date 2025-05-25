@@ -36,3 +36,22 @@ class Message(BaseModel):
             "role": self.role,
             "content": self.content
         }
+    
+
+class TestResult(BaseModel):
+    id: str
+    user_id: str
+    total_score: int
+    depression_score: int
+    anxiety_score: int
+    stress_score: int
+    created_at: str
+
+    
+class Mood(BaseModel):
+    id: str
+    user_id: str
+    selected_emotion: EmotionType
+    note: str
+    calculated_emotion: EmotionType
+    calculated_confidence: float

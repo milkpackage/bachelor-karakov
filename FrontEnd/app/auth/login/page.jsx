@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,8 +16,10 @@ import { getSupabaseBrowserClient } from "@/lib/supabase"
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const redirectPath = searchParams.get("redirect")
+  const authError = searchParams.get("error")
   const justRegistered = searchParams.get("registered") === "true"
-  const { login, isLoading } = useAuth()
+  const { login, isLoading: authLoading } = useAuth()
   const supabase = getSupabaseBrowserClient()
 
   const [formData, setFormData] = useState({
@@ -28,6 +30,14 @@ export default function LoginPage() {
   const [apiError, setApiError] = useState(null)
   const [showRegistrationSuccess, setShowRegistrationSuccess] = useState(justRegistered)
   const [isEmailNotConfirmed, setIsEmailNotConfirmed] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+
+  // Handle auth error from middleware
+  useEffect(() => {
+    if (authError === "auth_error") {
+      setApiError("Authentication error. Please log in again to continue.")
+    }
+  }, [authError])
 
   useEffect(() => {
     if (justRegistered) {
@@ -67,32 +77,101 @@ export default function LoginPage() {
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setApiError(null)
+  const handleSubmit = useCallback(
+    async (e) => {
+      e.preventDefault()
+      setApiError(null)
 
-    if (!validateForm()) return
+      if (!validateForm()) return
 
-    try {
-      const result = await login(formData.email, formData.password)
+      // Show loading state immediately for better UX
+      setIsLoading(true)
 
-      if (!result.success) {
-        if (result.isEmailNotConfirmed) {
-          // Special handling for email not confirmed
-          setApiError(result.error)
-          setIsEmailNotConfirmed(true)
-          return
+      // Track login start time for performance monitoring
+      const startTime = performance.now()
+
+      try {
+        // Clear any previous login errors from session storage
+        sessionStorage.removeItem("login-error")
+
+        const result = await login(formData.email, formData.password)
+
+        // Log performance metrics
+        const endTime = performance.now()
+        console.log(`Login process took ${endTime - startTime}ms`)
+
+        if (!result.success) {
+          if (result.isEmailNotConfirmed) {
+            // Special handling for email not confirmed
+            setApiError(result.error)
+            setIsEmailNotConfirmed(true)
+            return
+          }
+
+          if (result.isRateLimited) {
+            // Special handling for rate limiting
+            setApiError(result.error)
+            // Store in session storage to persist across page refreshes
+            sessionStorage.setItem(
+              "login-error",
+              JSON.stringify({
+                type: "rate-limited",
+                message: result.error,
+                timestamp: Date.now(),
+              }),
+            )
+            return
+          }
+
+          throw new Error(result.error || "Invalid email or password")
         }
-        throw new Error(result.error || "Invalid email or password")
-      }
 
-      // Redirect to dashboard on success
-      router.push("/")
-    } catch (error) {
-      console.error("Login error:", error)
-      setApiError("Invalid email or password. Please try again.")
+        // Redirect to the original URL or dashboard
+        router.push(redirectPath || "/")
+      } catch (error) {
+        console.error("Login error:", error)
+        setApiError("Invalid email or password. Please try again.")
+
+        // Store error in session storage
+        sessionStorage.setItem(
+          "login-error",
+          JSON.stringify({
+            type: "auth-error",
+            message: error.message,
+            timestamp: Date.now(),
+          }),
+        )
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [formData, login, router, redirectPath],
+  )
+
+  useEffect(() => {
+    const storedError = sessionStorage.getItem("login-error")
+
+    if (storedError) {
+      try {
+        const errorData = JSON.parse(storedError)
+
+        // Only show errors that are less than 5 minutes old
+        if (Date.now() - errorData.timestamp < 5 * 60 * 1000) {
+          setApiError(errorData.message)
+
+          if (errorData.type === "rate-limited") {
+            // Special handling for rate limiting
+          }
+        } else {
+          // Clear old errors
+          sessionStorage.removeItem("login-error")
+        }
+      } catch (e) {
+        console.error("Error parsing stored login error:", e)
+        sessionStorage.removeItem("login-error")
+      }
     }
-  }
+  }, [])
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-[#0c0c10] dark:to-[#0c0c10]">
@@ -107,7 +186,12 @@ export default function LoginPage() {
           <Card>
             <CardHeader>
               <CardTitle>Sign In</CardTitle>
-              <CardDescription>Sign in to your account to continue your mental health journey.</CardDescription>
+              <CardDescription>
+                Sign in to your account to continue your mental health journey.
+                {redirectPath && (
+                  <span className="block mt-1 text-primary">You'll be redirected to {redirectPath} after login.</span>
+                )}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {showRegistrationSuccess && (

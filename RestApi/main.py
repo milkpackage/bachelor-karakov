@@ -60,19 +60,9 @@ async def message(
     if not utils.is_user_premium(user):
         return utils.return_error(status_code=401, message="User is not premium")
     
-    # Reading previous messages
-    previous_messages = (
-        supabase_client.table("chat_messages")
-        .select("*")
-        .eq("user_id", user.user_id)
-        .order("created_at", desc=True)
-        .limit(5)
-        .execute()
-    ).data
-
     output_text: str = gpt.message(
-        text=message,
-        conversation=utils.get_conversation(user_id=user.user_id)
+        user_id=user.user_id,
+        text=message
     )
 
     supabase_client.table("chat_messages").insert({

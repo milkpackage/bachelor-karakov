@@ -8,17 +8,16 @@ import { useAuth } from "@/contexts/auth-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { Loader2 } from "lucide-react"
 
-// Map emotions to numerical values for the chart
 const emotionToValue = {
-  Joy: 10,
-  Trust: 9,
-  Anticipation: 7,
-  Surprise: 6,
-  Fear: 4,
-  Sadness: 3,
-  Anger: 2,
-  Disgust: 1,
-  Neutral: 0,
+  joy: 10,
+  trust: 9,
+  anticipation: 7,
+  surprise: 6,
+  fear: 4,
+  sadness: 3,
+  anger: 2,
+  disgust: 1,
+  neutral: 0,
 }
 
 export default function MoodHistory() {
@@ -38,7 +37,6 @@ export default function MoodHistory() {
       setIsLoading(true)
 
       try {
-        // Calculate date range based on selected time range
         const today = new Date()
         const startDate = new Date()
 
@@ -56,11 +54,9 @@ export default function MoodHistory() {
             startDate.setDate(today.getDate() - 7)
         }
 
-        // Format dates for Supabase query
         const formattedStartDate = startDate.toISOString()
         const formattedEndDate = today.toISOString()
 
-        // Fetch mood data from Supabase
         const { data, error } = await supabase
           .from("moods")
           .select("*")
@@ -71,14 +67,12 @@ export default function MoodHistory() {
 
         if (error) throw error
 
-        // Process data for chart
         if (data && data.length > 0) {
-          // Group by date and get the average emotion value
           const dateMap = new Map()
 
           data.forEach((item) => {
             const date = new Date(item.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-            const emotionValue = emotionToValue[item.selected_emotion] || 5 // Default to neutral if not found
+            const emotionValue = emotionToValue[item.selected_emotion] || 5 
 
             if (!dateMap.has(date)) {
               dateMap.set(date, {
@@ -96,10 +90,9 @@ export default function MoodHistory() {
             }
           })
 
-          // Convert to array and calculate averages
           const chartData = Array.from(dateMap.entries()).map(([date, data]) => ({
             date,
-            value: Math.round((data.total / data.count) * 10) / 10, // Round to 1 decimal place
+            value: Math.round((data.total / data.count) * 10) / 10, 
             rawDate: data.rawDate,
           }))
 
@@ -165,9 +158,6 @@ export default function MoodHistory() {
               showAnimation={true}
             />
             <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-              <span>Negative (1)</span>
-              <span>Neutral (5)</span>
-              <span>Positive (9)</span>
             </div>
           </div>
         )}

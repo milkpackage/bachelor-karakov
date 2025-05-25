@@ -138,9 +138,9 @@ export default function TestsSection() {
         if (error) throw error
       } catch (err) {
         console.error("Error saving test results:", err)
-        //setError(
-       //   "Failed to save your test results. Your results are displayed below but may not be saved to your account.",
-       // )
+        setError(
+          "Failed to save your test results. Your results are displayed below but may not be saved to your account.",
+        )
       } finally {
         setIsLoading(false)
       }
@@ -157,26 +157,26 @@ export default function TestsSection() {
 
   const getDepressionLevel = (score) => {
     if (score <= 4) return { level: "Normal", color: "bg-emerald-500" }
-    if (score <= 6) return { level: "Mild", color: "bg-amber-500" }
-    if (score <= 10) return { level: "Moderate", color: "bg-orange-500" }
-    if (score <= 13) return { level: "Severe", color: "bg-red-500" }
-    return { level: "Extremely Severe", color: "bg-red-700" }
+    if (score <= 6) return { level: "Mild", color: "bg-yellow-500" }
+    if (score <= 10) return { level: "Moderate", color: "bg-amber-500" }
+    if (score <= 13) return { level: "Severe", color: "bg-orange-500" }
+    return { level: "Extremely Severe", color: "bg-red-600" }
   }
 
   const getAnxietyLevel = (score) => {
     if (score <= 3) return { level: "Normal", color: "bg-emerald-500" }
-    if (score <= 5) return { level: "Mild", color: "bg-amber-500" }
-    if (score <= 7) return { level: "Moderate", color: "bg-orange-500" }
-    if (score <= 9) return { level: "Severe", color: "bg-red-500" }
-    return { level: "Extremely Severe", color: "bg-red-700" }
+    if (score <= 5) return { level: "Mild", color: "bg-yellow-500" }
+    if (score <= 7) return { level: "Moderate", color: "bg-amber-500" }
+    if (score <= 9) return { level: "Severe", color: "bg-orange-500" }
+    return { level: "Extremely Severe", color: "bg-red-600" }
   }
 
   const getStressLevel = (score) => {
     if (score <= 7) return { level: "Normal", color: "bg-emerald-500" }
-    if (score <= 9) return { level: "Mild", color: "bg-amber-500" }
-    if (score <= 12) return { level: "Moderate", color: "bg-orange-500" }
-    if (score <= 16) return { level: "Severe", color: "bg-red-500" }
-    return { level: "Extremely Severe", color: "bg-red-700" }
+    if (score <= 9) return { level: "Mild", color: "bg-yellow-500" }
+    if (score <= 12) return { level: "Moderate", color: "bg-amber-500" }
+    if (score <= 16) return { level: "Severe", color: "bg-orange-500" }
+    return { level: "Extremely Severe", color: "bg-red-600" }
   }
 
   return (
@@ -219,10 +219,12 @@ export default function TestsSection() {
                     <span className="text-sm font-medium">Depression</span>
                     <span className="text-sm font-medium">{getDepressionLevel(results.depression_score).level}</span>
                   </div>
-                  <Progress
-                    value={(results.depression_score / 21) * 100}
-                    className={getDepressionLevel(results.depression_score).color}
-                  />
+                  <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${getDepressionLevel(results.depression_score).color} transition-all duration-300`}
+                      style={{ width: `${(results.depression_score / 21) * 100}%` }}
+                    />
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">Score: {results.depression_score}/21</p>
                 </div>
 
@@ -231,10 +233,12 @@ export default function TestsSection() {
                     <span className="text-sm font-medium">Anxiety</span>
                     <span className="text-sm font-medium">{getAnxietyLevel(results.anxiety_score).level}</span>
                   </div>
-                  <Progress
-                    value={(results.anxiety_score / 21) * 100}
-                    className={getAnxietyLevel(results.anxiety_score).color}
-                  />
+                  <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${getAnxietyLevel(results.anxiety_score).color} transition-all duration-300`}
+                      style={{ width: `${(results.anxiety_score / 21) * 100}%` }}
+                    />
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">Score: {results.anxiety_score}/21</p>
                 </div>
 
@@ -243,10 +247,12 @@ export default function TestsSection() {
                     <span className="text-sm font-medium">Stress</span>
                     <span className="text-sm font-medium">{getStressLevel(results.stress_score).level}</span>
                   </div>
-                  <Progress
-                    value={(results.stress_score / 21) * 100}
-                    className={getStressLevel(results.stress_score).color}
-                  />
+                  <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${getStressLevel(results.stress_score).color} transition-all duration-300`}
+                      style={{ width: `${(results.stress_score / 21) * 100}%` }}
+                    />
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">Score: {results.stress_score}/21</p>
                 </div>
 
@@ -254,7 +260,22 @@ export default function TestsSection() {
                   <div className="flex justify-between mb-1">
                     <span className="text-sm font-medium">Total Score</span>
                   </div>
-                  <Progress value={(results.total_score / 63) * 100} className="bg-blue-500" />
+                  <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 ${
+                        results.total_score <= 20
+                          ? "bg-emerald-500"
+                          : results.total_score <= 30
+                            ? "bg-yellow-500"
+                            : results.total_score <= 40
+                              ? "bg-amber-500"
+                              : results.total_score <= 50
+                                ? "bg-orange-500"
+                                : "bg-red-600"
+                      }`}
+                      style={{ width: `${(results.total_score / 63) * 100}%` }}
+                    />
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">Score: {results.total_score}/63</p>
                 </div>
               </div>

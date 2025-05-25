@@ -1,135 +1,213 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useRef } from "react"
+
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MessageSquare, Heart, Info, ExternalLink, Sparkles } from "lucide-react"
+import { MessageSquare, Heart, ExternalLink, Sparkles, Loader2 } from "lucide-react"
 import ChatUI from "@/components/chat"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/auth-context"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 
-
 export default function ChatbotSection() {
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const { user, isAuthenticated } = useAuth()
   const supabase = getSupabaseBrowserClient()
+  const isInitialLoad = useRef(true)
   const chatContainerRef = useRef(null)
 
   // Sample conversation starters
   const conversationStarters = [
-    "I'm feeling anxious today",
+    "Analyze my mood",
     "How can I practice mindfulness?",
     "I'm having trouble sleeping",
     "What are some stress management techniques?",
     "I feel overwhelmed with work",
   ]
 
-  useEffect(() => {
-    // Initialize with a welcome message
-    setMessages([
-      {
-        message: "Hello! I'm your mental health assistant. How are you feeling today?",
-        role: "assistant",
-        createdAt: new Date(),
-      },
-    ])
-
-    // If authenticated, fetch chat history
-    if (isAuthenticated && user) {
-      fetchChatHistory()
-    }
-  }, [isAuthenticated, user])
-
   const fetchChatHistory = async () => {
+    setIsLoadingHistory(true)
     try {
+      console.log("Fetching chat history for user:", user.id)
+
+      // Directly query Supabase for chat messages
       const { data, error } = await supabase
         .from("chat_messages")
         .select("*")
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(20)
+        .order("created_at", { ascending: true })
+        .limit(50)
 
-      if (error) throw error
+      if (error) {
+        console.error("Supabase error fetching chat history:", error)
+        throw error
+      }
+
+      console.log("Chat history data received:", data)
 
       if (data && data.length > 0) {
-        // Transform and reverse to show in chronological order
-        const formattedMessages = data
-          .map((msg) => ({
-            message: msg.message,
-            role: msg.role,
-            createdAt: new Date(msg.created_at),
-          }))
-          .reverse()
+        // Transform the data to match our message format
+        const formattedMessages = data.map((msg) => ({
+          message: msg.message,
+          role: msg.role,
+          createdAt: new Date(msg.created_at),
+        }))
 
+        console.log("Formatted messages:", formattedMessages)
         setMessages(formattedMessages)
+      } else {
+        console.log("No chat history found, showing welcome message")
+        // No history found, show welcome message
+        setMessages([
+          {
+            message: "Hello! I'm your mental health assistant. How are you feeling today?",
+            role: "assistant",
+            createdAt: new Date(),
+          },
+        ])
       }
     } catch (err) {
       console.error("Error fetching chat history:", err)
+      // Fallback to welcome message on error
+      setMessages([
+        {
+          message: "Hello! I'm your mental health assistant. How are you feeling today?",
+          role: "assistant",
+          createdAt: new Date(),
+        },
+      ])
+    } finally {
+      setIsLoadingHistory(false)
     }
   }
+
+  useEffect(() => {
+    // If authenticated, fetch chat history first, otherwise show welcome message
+    if (isAuthenticated && user) {
+      console.log("User authenticated, fetching chat history")
+
+      // Only fetch history after initial page load to prevent scroll issues
+      if (isInitialLoad.current) {
+        // Delay the fetch slightly to ensure page has settled
+        setTimeout(() => {
+          fetchChatHistory()
+        }, 200)
+        isInitialLoad.current = false
+      } else {
+        fetchChatHistory()
+      }
+    } else {
+      console.log("User not authenticated, showing welcome message")
+      // Initialize with a welcome message for non-authenticated users
+      setMessages([
+        {
+          message: "Hello! I'm your mental health assistant. How are you feeling today?",
+          role: "assistant",
+          createdAt: new Date(),
+        },
+      ])
+    }
+  }, [isAuthenticated, user])
 
   const handleSendMessage = async (message) => {
     if (!message.trim()) return
 
-    // Add user message to chat
-    const userMessage = { message, role: "user", createdAt: new Date() }
+    // Add user message to chat immediately
+    const userMessage = { message: message.trim(), role: "user", createdAt: new Date() }
     setMessages((prev) => [...prev, userMessage])
     setIsLoading(true)
 
     try {
-      // Save message to database if authenticated
-      if (!(isAuthenticated && user)) { return }
+      // Save user message to database if authenticated
+      if (isAuthenticated && user) {
+        await supabase.from("chat_messages").insert({
+          user_id: user.id,
+          content: message.trim(),
+          role: "user",
+        })
+      }
 
-      // Get the user's access token
       const {
         data: { session },
       } = await supabase.auth.getSession()
       const accessToken = session?.access_token
 
-      const queryParams = new URLSearchParams({
-        message: message.trim()
-      });
-
-      // Send request to chat API
-      const baseUrl = "http://127.0.0.1:8000/chat"
-      const urlWithParams = `${baseUrl}?${queryParams.toString()}`
-      const response = await fetch(urlWithParams, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken || ""}`, // Include token if available
-        },
-        body: JSON.stringify({
-          message: message,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.statusText}`)
+      if (!accessToken) {
+        throw new Error("Authentication required")
       }
 
-      const data = await response.json()
+      // Prepare the API request
+      const apiUrl = "http://127.0.0.1:8000/chat"
+
+      const url = new URL(apiUrl)
+      url.searchParams.append("message", message.trim())
+
+      console.log("Sending request to:", url.toString())
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+
+      console.log("Response status:", response.status)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error("API Error Response:", errorText)
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`)
+      }
+
+      const responseData = await response.json()
+      console.log("API Response:", responseData)
+
+      // Extract the message from the response
+      const assistantMessageContent = responseData.message || "I'm sorry, I couldn't process your request."
 
       // Add assistant response to chat
       const assistantMessage = {
-        message: data.message,
+        message: assistantMessageContent,
         role: "assistant",
         createdAt: new Date(),
       }
       setMessages((prev) => [...prev, assistantMessage])
-    } catch (error) {
-      console.error("Error sending message:", error)
 
-      // Add error message to chat
+      // Save AI response to database if authenticated
+      if (isAuthenticated && user) {
+        await supabase.from("chat_messages").insert({
+          user_id: user.id,
+          content: assistantMessageContent,
+          role: "assistant",
+        })
+      }
+    } catch (error) {
+      console.error("Error in handleSendMessage:", error)
+
       const errorMessage = {
         message: "Sorry, I'm having trouble connecting right now. Please try again later.",
         role: "assistant",
         createdAt: new Date(),
       }
       setMessages((prev) => [...prev, errorMessage])
+
+      // Save error message to database if authenticated
+      if (isAuthenticated && user) {
+        try {
+          await supabase.from("chat_messages").insert({
+            user_id: user.id,
+            content: errorMessage.message,
+            role: "assistant",
+          })
+        } catch (err) {
+          console.error("Error saving error message:", err)
+        }
+      }
     } finally {
       setIsLoading(false)
     }
@@ -137,6 +215,26 @@ export default function ChatbotSection() {
 
   const handleStarterClick = (starter) => {
     handleSendMessage(starter)
+  }
+
+  const clearChatHistory = async () => {
+    if (!isAuthenticated || !user) return
+
+    try {
+      const { error } = await supabase.from("chat_messages").delete().eq("user_id", user.id)
+
+      if (error) throw error
+
+      setMessages([
+        {
+          message: "Hello! I'm your new assistant. How are you feeling today?",
+          role: "assistant",
+          createdAt: new Date(),
+        },
+      ])
+    } catch (err) {
+      console.error("Error clearing chat history:", err)
+    }
   }
 
   return (
@@ -155,7 +253,7 @@ export default function ChatbotSection() {
               <p className="text-muted-foreground">Talk to our AI assistant about your mental health concerns.</p>
             </div>
           </div>
-          
+
           <Tabs defaultValue="about" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="about">About</TabsTrigger>
@@ -174,17 +272,6 @@ export default function ChatbotSection() {
                 </p>
               </div>
 
-              <div className="bg-white dark:bg-[#141420] rounded-lg p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-2">
-                  <Info className="h-5 w-5 text-amber-500" />
-                  <h3 className="font-medium">Important Note</h3>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Your conversations are private and designed to provide helpful guidance. Remember that this is a
-                  supportive tool and not a replacement for professional mental health care.
-                </p>
-              </div>
-
               <Alert className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
                 <AlertDescription className="text-sm flex items-center gap-2">
                   <ExternalLink className="h-4 w-4 text-blue-500" />
@@ -194,6 +281,20 @@ export default function ChatbotSection() {
                   </span>
                 </AlertDescription>
               </Alert>
+
+              {isAuthenticated && (
+                <div className="bg-white dark:bg-[#141420] rounded-lg p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-medium">Chat History</h3>
+                    <Button variant="outline" size="sm" onClick={clearChatHistory} className="text-xs">
+                      Clear History
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Your conversation history is automatically saved and will be restored when you return.
+                  </p>
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="tips" className="space-y-4 mt-4">
@@ -203,7 +304,7 @@ export default function ChatbotSection() {
                   <h3 className="font-medium">Conversation Starters</h3>
                 </div>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Not sure what to talk about? Try one of these conversation starters:
+                  Not sure what to talk about? Try this:
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {conversationStarters.map((starter, index) => (
@@ -213,6 +314,7 @@ export default function ChatbotSection() {
                       size="sm"
                       className="text-xs"
                       onClick={() => handleStarterClick(starter)}
+                      disabled={isLoading}
                     >
                       {starter}
                     </Button>
@@ -249,8 +351,7 @@ export default function ChatbotSection() {
             <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20">
               <CardContent className="p-4">
                 <p className="text-sm text-amber-800 dark:text-amber-400">
-                  <strong>Note:</strong> Sign in to save your conversation history and receive more personalized
-                  support.
+                  <strong>Note:</strong> Sign in to use chatbot
                 </p>
               </CardContent>
             </Card>
@@ -258,7 +359,25 @@ export default function ChatbotSection() {
         </div>
 
         <div className="lg:col-span-3 h-[500px]" ref={chatContainerRef}>
-          <ChatUI messages={messages} onSendMessage={handleSendMessage} isLoading={isLoading} />
+          {isLoadingHistory ? (
+            <Card className="flex flex-col h-full border shadow-md dark:bg-[#141420] dark:border-[#2a2a3c]">
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-primary" />
+                  <p className="text-sm text-muted-foreground">Loading chat history...</p>
+                </div>
+              </div>
+            </Card>
+          ) : (
+            <ChatUI
+              messages={messages}
+              onSendMessage={handleSendMessage}
+              isLoading={isLoading}
+              expandable={true}
+              preventInitialFocus={true}
+              skipInitialScroll={true}
+            />
+          )}
         </div>
       </div>
     </section>

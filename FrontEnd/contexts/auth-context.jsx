@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
+import { clearAuthCache, detectSessionInconsistencies } from "@/lib/session-utils"
 
 // Create the auth context
 const AuthContext = createContext({
@@ -15,33 +16,65 @@ const AuthContext = createContext({
   updateProfile: async () => {},
 })
 
-// Auth provider component
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [profileTableExists, setProfileTableExists] = useState(true)
   const router = useRouter()
   const supabase = getSupabaseBrowserClient()
 
-  // Check if user is logged in on initial load
+  const checkProfilesTable = async () => {
+    try {
+      const { error } = await supabase.from("profiles").select("id").limit(1)
+
+      if (error && error.message.includes("does not exist")) {
+        console.warn("Profiles table does not exist in the database. User profile data will be limited.")
+        setProfileTableExists(false)
+        return false
+      }
+      return true
+    } catch (error) {
+      console.error("Error checking profiles table:", error)
+      setProfileTableExists(false)
+      return false
+    }
+  }
+
+  // Update the useEffect hook that checks authentication status
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // Get session from Supabase
+        setIsLoading(true)
+
+        const inconsistencyFixed = await detectSessionInconsistencies(supabase)
+        if (inconsistencyFixed) {
+          console.log("Session inconsistency fixed, rechecking auth...")
+        }
+
         const {
           data: { session },
+          error: sessionError,
         } = await supabase.auth.getSession()
 
+        if (sessionError) throw sessionError
+
         if (session) {
-          // Get user profile data
-          const { data: profile } = await supabase.from("profiles").select("*").eq("id", session.user.id).single()
+          console.log("Session found, user is authenticated", session.user.email)
+
+          checkProfilesTable().catch((err) => console.error("Profile table check failed:", err))
 
           setUser({
             ...session.user,
-            ...profile,
           })
+        } else {
+          console.log("No session found, user is not authenticated")
+          setUser(null)
+          // Clear cache if no session
+          localStorage.removeItem("user-profile-cache")
         }
       } catch (error) {
         console.error("Auth verification error:", error)
+        setUser(null)
       } finally {
         setIsLoading(false)
       }
@@ -49,34 +82,73 @@ export function AuthProvider({ children }) {
 
     checkAuth()
 
-    // Set up auth state change listener
+    // Set up auth state change listener with debounce to prevent multiple rapid updates
+    let debounceTimeout = null
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session) {
-        // Get user profile data
-        const { data: profile } = await supabase.from("profiles").select("*").eq("id", session.user.id).single()
+      if (debounceTimeout) clearTimeout(debounceTimeout)
 
-        setUser({
-          ...session.user,
-          ...profile,
-        })
-      } else {
-        setUser(null)
-      }
-      setIsLoading(false)
+      debounceTimeout = setTimeout(async () => {
+        console.log("Auth state changed:", event)
+
+        if (session) {
+          console.log("Session updated, user is authenticated", session.user.email)
+
+          setUser({
+            ...session.user,
+          })
+
+          if (profileTableExists) {
+            try {
+
+              const { data: profile, error } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("id", session.user.id)
+                .single()
+
+              if (error) {
+                if (error.message.includes("does not exist")) {
+                  console.warn("Profiles table does not exist. Using basic user data.")
+                  setProfileTableExists(false)
+                } else {
+                  console.error("Error fetching profile on auth change:", error)
+                }
+              } else if (profile) {
+                localStorage.setItem("user-profile-cache", JSON.stringify(profile))
+                setUser((prev) => ({
+                  ...prev,
+                  ...profile,
+                }))
+              }
+            } catch (error) {
+              console.error("Error in profile fetch during auth change:", error)
+            }
+          }
+        } else {
+          console.log("Session removed, user is not authenticated")
+          setUser(null)
+          localStorage.removeItem("user-profile-cache")
+        }
+        setIsLoading(false)
+      }, 300) 
     })
 
     return () => {
+      if (debounceTimeout) clearTimeout(debounceTimeout)
       subscription?.unsubscribe()
     }
-  }, [supabase])
+  }, [supabase, router])
 
-  // Login function
+  // Update the login function for better error handling and performance
   const login = async (email, password) => {
     setIsLoading(true)
 
     try {
+      // Clear any cache before login
+      localStorage.removeItem("user-profile-cache")
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -91,8 +163,18 @@ export function AuthProvider({ children }) {
             isEmailNotConfirmed: true,
           }
         }
+        if (error.message.includes("rate limit") || error.status === 429) {
+          return {
+            success: false,
+            error: "Too many login attempts. Please try again later.",
+            isRateLimited: true,
+          }
+        }
+
         throw error
       }
+
+      console.log("Login successful", data.user.email)
 
       return { success: true }
     } catch (error) {
@@ -103,13 +185,24 @@ export function AuthProvider({ children }) {
     }
   }
 
-  // Logout function
+  // Update the logout function
   const logout = async () => {
-    await supabase.auth.signOut()
-    router.push("/auth/login")
+    try {
+      clearAuthCache()
+
+      await supabase.auth.signOut()
+
+      setUser(null)
+
+      router.push("/auth/login")
+    } catch (error) {
+      console.error("Logout error:", error)
+      clearAuthCache()
+      setUser(null)
+      router.push("/auth/login")
+    }
   }
 
-  // Register function
   const register = async ({ email, password, username }) => {
     setIsLoading(true)
 
@@ -128,6 +221,8 @@ export function AuthProvider({ children }) {
         throw error
       }
 
+      console.log("Registration successful", data.user.email)
+
       return { success: true }
     } catch (error) {
       console.error("Registration error:", error)
@@ -137,18 +232,25 @@ export function AuthProvider({ children }) {
     }
   }
 
-  // Update profile function
   const updateProfile = async (profileData) => {
     if (!user) return { success: false, error: "Not authenticated" }
+
+    if (!profileTableExists) {
+      return { success: false, error: "Profile functionality is not available" }
+    }
 
     try {
       const { error } = await supabase.from("profiles").update(profileData).eq("id", user.id)
 
       if (error) {
+        if (error.message.includes("does not exist")) {
+          console.warn("Profiles table does not exist. Cannot update profile.")
+          setProfileTableExists(false)
+          return { success: false, error: "Profile functionality is not available" }
+        }
         throw error
       }
 
-      // Update local user state
       setUser({ ...user, ...profileData })
 
       return { success: true }
@@ -158,7 +260,6 @@ export function AuthProvider({ children }) {
     }
   }
 
-  // Context value
   const value = {
     user,
     isAuthenticated: !!user,
@@ -172,5 +273,4 @@ export function AuthProvider({ children }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-// Custom hook to use the auth context
 export const useAuth = () => useContext(AuthContext)

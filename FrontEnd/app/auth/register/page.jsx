@@ -1,221 +1,126 @@
 "use client"
 
-import { useState } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react"
+import { useEffect } from "react"
 import Header from "@/components/header"
-import { useAuth } from "@/contexts/auth-context"
+import Dashboard from "@/components/dashboard"
+import EmotionTracker from "@/components/emotion-tracker"
+import TestsSection from "@/components/tests-section"
+import ChatbotSection from "@/components/chatbot-section"
 
-import { getSupabaseBrowserClient } from "@/lib/supabase"
-
-export default function RegisterPage() {
-  const router = useRouter()
-  const { register, isLoading } = useAuth()
-
-  // Add the supabase client near the top of the component
-  const supabase = getSupabaseBrowserClient()
-
-  const [formData, setFormData] = useState({
-    username: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  })
-  const [errors, setErrors] = useState({})
-  const [apiError, setApiError] = useState(null)
-
-  // Add a new state variable for registration success
-  const [registrationSuccess, setRegistrationSuccess] = useState(false)
-
-  const handleChange = (e) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-
-    // Clear error when user types
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: null }))
-    }
-  }
-
-  const validateForm = () => {
-    const newErrors = {}
-
-    if (!formData.username.trim()) {
-      newErrors.username = "Username is required"
-    }
-
-    if (!formData.email.trim()) {
-      newErrors.email = "Email is required"
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = "Email is invalid"
-    }
-
-    if (!formData.password) {
-      newErrors.password = "Password is required"
-    } else if (formData.password.length < 8) {
-      newErrors.password = "Password must be at least 8 characters"
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = "Passwords do not match"
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  // Update the handleSubmit function to show a clearer message about email confirmation
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setApiError(null)
-
-    if (!validateForm()) return
-
-    try {
-      const result = await register({
-        email: formData.email,
-        password: formData.password,
-        username: formData.username,
-      })
-
-      if (!result.success) {
-        throw new Error(result.error || "Registration failed")
+export default function Home() {
+  useEffect(() => {
+    // Function to force the page to the top
+    const forceScrollToTop = () => {
+      // Try multiple methods to ensure we're at the top
+      const topAnchor = document.getElementById("top")
+      if (topAnchor) {
+        topAnchor.scrollIntoView({ behavior: "instant", block: "start" })
       }
 
-      // Show success message and redirect
-      setRegistrationSuccess(true)
+      // Also use window.scrollTo as fallback with multiple approaches
+      window.scrollTo(0, 0)
+      window.scrollTo({ top: 0, behavior: "instant" })
 
-      // Redirect after a delay to allow the user to read the message
+      // Use requestAnimationFrame for better timing
+      requestAnimationFrame(() => {
+        window.scrollTo(0, 0)
+      })
+
+      // Try again after a short delay to override any other scripts
       setTimeout(() => {
-        router.push("/auth/login?registered=true")
-      }, 5000)
-    } catch (error) {
-      console.error("Registration error:", error)
-      setApiError(error.message || "An error occurred during registration. Please try again.")
+        window.scrollTo(0, 0)
+      }, 50)
     }
-  }
+
+    // Disable scroll restoration
+    if ("scrollRestoration" in history) {
+      history.scrollRestoration = "manual"
+    }
+
+    // Run immediately
+    forceScrollToTop()
+
+    // Remove hash from URL if present
+    if (window.location.hash) {
+      const cleanUrl = window.location.href.split("#")[0]
+      window.history.replaceState({}, document.title, cleanUrl)
+    }
+
+    // Handle visibility change (for when user returns to tab)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        forceScrollToTop()
+      }
+    }
+
+    // Prevent default scroll behavior for hash links
+    const preventHashScroll = (event) => {
+      const target = event.target.closest("a")
+      if (target && target.hash && target.pathname === window.location.pathname) {
+        event.preventDefault()
+
+        // Custom scroll behavior
+        const id = target.hash.substring(1)
+        const element = document.getElementById(id)
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "start" })
+        }
+      }
+    }
+
+    // Add event listeners
+    document.addEventListener("click", preventHashScroll)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    // Force scroll on various events that might cause unwanted scrolling
+    window.addEventListener("pageshow", forceScrollToTop)
+    window.addEventListener("focus", forceScrollToTop)
+    window.addEventListener("DOMContentLoaded", forceScrollToTop)
+    window.addEventListener("load", forceScrollToTop)
+
+    // Prevent scroll on message updates
+    const preventScrollOnChatUpdate = () => {
+      const chatSections = document.querySelectorAll("#chat")
+      if (chatSections.length > 0) {
+        // MutationObserver to detect changes in the chat section
+        const observer = new MutationObserver(() => {
+          // Don't allow scrolling to bottom when chat content changes
+          window.scrollTo(0, 0)
+        })
+
+        // Observe all chat sections
+        chatSections.forEach((section) => {
+          observer.observe(section, { childList: true, subtree: true })
+        })
+
+        return () => observer.disconnect()
+      }
+    }
+
+    // Set up the chat observer after a short delay
+    const chatObserverTimeout = setTimeout(preventScrollOnChatUpdate, 500)
+
+    // Clean up
+    return () => {
+      document.removeEventListener("click", preventHashScroll)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      window.removeEventListener("pageshow", forceScrollToTop)
+      window.removeEventListener("focus", forceScrollToTop)
+      window.removeEventListener("DOMContentLoaded", forceScrollToTop)
+      window.removeEventListener("load", forceScrollToTop)
+      clearTimeout(chatObserverTimeout)
+    }
+  }, [])
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-[#0c0c10] dark:to-[#0c0c10]">
+    <main className="min-h-screen bg-[#fafafa] dark:bg-[#0c0c10]">
+      <a id="top" className="absolute top-0" aria-hidden="true"></a>
       <Header />
-      <div className="container mx-auto px-4 py-8 flex justify-center">
-        <div className="w-full max-w-md">
-          <Button variant="ghost" className="mb-4" onClick={() => router.push("/")}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Home
-          </Button>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Create an Account</CardTitle>
-              <CardDescription>
-                Sign up to track your mental health journey and access personalized insights.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {apiError && (
-                <Alert variant="destructive" className="mb-4">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>{apiError}</AlertDescription>
-                </Alert>
-              )}
-
-              {registrationSuccess && (
-                <Alert className="mb-4 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="h-4 w-4" />
-                  <AlertTitle>Registration Successful!</AlertTitle>
-                  <AlertDescription>
-                    Please check your email for a confirmation link. You'll need to confirm your email before you can
-                    log in. You'll be redirected to the login page in a few seconds.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
-                  <Input
-                    id="username"
-                    name="username"
-                    value={formData.username}
-                    onChange={handleChange}
-                    placeholder="johndoe"
-                    autoComplete="username"
-                  />
-                  {errors.username && <p className="text-sm text-destructive">{errors.username}</p>}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="john.doe@example.com"
-                    autoComplete="email"
-                  />
-                  {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                  />
-                  {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
-                  <Input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type="password"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                  />
-                  {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
-                </div>
-
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating Account...
-                    </>
-                  ) : (
-                    "Create Account"
-                  )}
-                </Button>
-              </form>
-            </CardContent>
-            <CardFooter className="flex flex-col items-center">
-              <p className="text-sm text-muted-foreground">
-                Already have an account?{" "}
-                <Link href="/auth/login" className="text-primary hover:underline">
-                  Sign in
-                </Link>
-              </p>
-            </CardFooter>
-          </Card>
-        </div>
+      <div className="container mx-auto px-4 py-8 space-y-12">
+        <Dashboard />
+        <EmotionTracker />
+        <TestsSection />
+        <ChatbotSection />
       </div>
     </main>
   )

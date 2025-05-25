@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react"
 import Header from "@/components/header"
 import { useAuth } from "@/contexts/auth-context"
+import { getSupabaseBrowserClient } from "@/lib/supabase"
 
 export default function ProfilePage() {
   const { user, isAuthenticated, isLoading } = useAuth()
@@ -27,23 +28,32 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
+  const [redirecting, setRedirecting] = useState(false)
 
   // Redirect if not authenticated
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.push("/auth/login")
+      console.log("User not authenticated, redirecting to login")
+      setRedirecting(true)
+
+      const redirectTimer = setTimeout(() => {
+        router.push("/auth/login?redirect=/profile")
+      }, 500)
+
+      return () => clearTimeout(redirectTimer)
     }
   }, [isLoading, isAuthenticated, router])
 
   // Load user data
   useEffect(() => {
     if (user) {
+      console.log("Setting form data from user", user)
       setFormData({
-        username: user.username || "",
+        username: user.username || user.user_metadata?.username || "",
         email: user.email || "",
-        firstName: user.first_name || "",
-        lastName: user.last_name || "",
-        bio: user.bio || "",
+        firstName: user.first_name || user.user_metadata?.first_name || "",
+        lastName: user.last_name || user.user_metadata?.last_name || "",
+        bio: user.bio || user.user_metadata?.bio || "",
       })
     }
   }, [user])
@@ -60,24 +70,18 @@ export default function ProfilePage() {
     setIsSaving(true)
 
     try {
-      // This would be replaced with your actual API call to Django
-      const token = localStorage.getItem("authToken")
-      const response = await fetch("http://your-django-api/auth/profile/update/", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Token ${token}`,
+      // Update user metadata in Supabase
+      const supabase = getSupabaseBrowserClient()
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          username: formData.username,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          bio: formData.bio,
         },
-        body: JSON.stringify(formData),
       })
 
-      // Simulate API call for now
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.detail || "Failed to update profile")
-      }
+      if (error) throw error
 
       setSuccess(true)
       setIsEditing(false)
@@ -94,12 +98,28 @@ export default function ProfilePage() {
     }
   }
 
-  if (isLoading) {
+  if (isLoading || redirecting) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-[#0c0c10] dark:to-[#0c0c10]">
         <Header />
         <div className="container mx-auto px-4 py-8 flex justify-center items-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </main>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <main className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-[#0c0c10] dark:to-[#0c0c10]">
+        <Header />
+        <div className="container mx-auto px-4 py-8">
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-muted-foreground mb-4">You need to be logged in to view this page.</p>
+              <Button onClick={() => router.push("/auth/login?redirect=/profile")}>Sign In</Button>
+            </CardContent>
+          </Card>
         </div>
       </main>
     )
@@ -112,7 +132,7 @@ export default function ProfilePage() {
         <div className="max-w-2xl mx-auto">
           <h1 className="text-3xl font-bold mb-6">Your Profile</h1>
 
-          <Card>
+          <Card className="bg-[#1a1a24] border-[#2a2a3c]">
             <CardHeader>
               <CardTitle>Personal Information</CardTitle>
               <CardDescription>Manage your personal information and how it appears on the platform.</CardDescription>
@@ -155,7 +175,7 @@ export default function ProfilePage() {
                       type="email"
                       value={formData.email}
                       onChange={handleChange}
-                      disabled={!isEditing}
+                      disabled={true} // Email can't be changed
                     />
                   </div>
 
@@ -222,7 +242,7 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          <Card className="mt-6">
+          <Card className="mt-6 bg-[#1a1a24] border-[#2a2a3c]">
             <CardHeader>
               <CardTitle>Account Security</CardTitle>
               <CardDescription>Manage your password and account security settings.</CardDescription>
@@ -236,6 +256,35 @@ export default function ProfilePage() {
                   </div>
                   <Button variant="outline" onClick={() => router.push("/auth/change-password")}>
                     Change Password
+                  </Button>
+                </div>
+
+                <div className="flex justify-between items-center pt-4 border-t">
+                  <div>
+                    <h3 className="font-medium text-red-600 dark:text-red-400">Delete Account</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Permanently delete your account and all associated data.
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    onClick={async () => {
+                      if (
+                        window.confirm("Are you sure you want to delete your account? This action cannot be undone.")
+                      ) {
+                        try {
+                          const supabase = getSupabaseBrowserClient()
+                          await supabase.auth.signOut()
+                          await supabase.auth.admin.deleteUser(user.id)
+                          router.push("/")
+                        } catch (error) {
+                          console.error("Error deleting account:", error)
+                          alert("Failed to delete account. Please try again later.")
+                        }
+                      }
+                    }}
+                  >
+                    Delete Account
                   </Button>
                 </div>
               </div>

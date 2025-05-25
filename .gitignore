@@ -3,4 +3,4 @@
 **/next-env 
 /RestApi/.env
 /FrontEnd/public/
-RestApi/data/roberta_plutchik.pt
+/RestApi/data/roberta_plutchik.pt
